@@ -11,9 +11,10 @@ defmodule Schema.JsonSchema do
 
   Options: :package_name | :schema_version
   """
-  @spec encode(map(), nil | Keyword.t()) :: map()
-  def encode(type, options) when is_map(type) do
+  @spec encode(map(), nil | Keyword.t(), boolean) :: map()
+  def encode(type, options, strict) when is_map(type) do
     Process.put(:options, options || [])
+    Process.put(:strict, strict)
 
     try do
       encode(type)
@@ -93,7 +94,11 @@ defmodule Schema.JsonSchema do
     if map_size(properties) == 0 do
       Map.put(map, "additionalProperties", true)
     else
-      map
+      if Process.get(:strict) do
+        Map.put(map, "additionalProperties", false)
+      else
+        map
+      end
     end
   end
 

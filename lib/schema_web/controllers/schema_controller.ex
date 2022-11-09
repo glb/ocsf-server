@@ -612,6 +612,7 @@ defmodule SchemaWeb.SchemaController do
       name(:path, :string, "Class name", required: true)
       profiles(:query, :array, "Related profiles to include in response.", items: [type: :string])
       package_name(:query, :string, "Java package name")
+      strict(:query, :boolean, "Disallow additional attributes in JSON objects")
     end
 
     response(200, "Success")
@@ -622,14 +623,15 @@ defmodule SchemaWeb.SchemaController do
   def json_class(conn, %{"id" => id} = params) do
     extension = extension(params)
     options = Map.get(params, "package_name") |> parse_java_package()
-    
+    strict = Map.get(params, "strict") |> parse_strict()
+
     try do
       case Schema.class_ex(extension, id, parse_options(profiles(params))) do
         nil ->
           send_json_resp(conn, 404, %{error: "Event class #{id} not found"})
 
         data ->
-          class = Schema.JsonSchema.encode(data, options)
+          class = Schema.JsonSchema.encode(data, options, strict)
           send_json_resp(conn, class)
       end
     rescue
@@ -667,18 +669,19 @@ defmodule SchemaWeb.SchemaController do
   @spec json_object(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def json_object(conn, %{"id" => id} = params) do
     options = Map.get(params, "package_name") |> parse_java_package()
-    
+    strict = Map.get(params, "strict") |> parse_strict()
+
     profiles = parse_options(profiles(params))
     extension = extension(params)
     extensions = parse_options(extensions(params))
-    
+
     try do
       case Schema.object_ex(extensions, extension, id, profiles) do
         nil ->
           send_json_resp(conn, 404, %{error: "Object #{id} not found"})
 
         data ->
-          object = Schema.JsonSchema.encode(data, options)
+          object = Schema.JsonSchema.encode(data, options, strict)
           send_json_resp(conn, object)
       end
     rescue
@@ -1032,9 +1035,11 @@ defmodule SchemaWeb.SchemaController do
     |> Enum.map(fn s -> String.trim(s) end)
     |> MapSet.new()
   end
-  
+
   defp parse_java_package(nil), do: []
   defp parse_java_package(""), do: []
   defp parse_java_package(name), do: [package_name: name]
 
+  defp parse_strict("true"), do: true
+  defp parse_strict(_), do: false
 end
